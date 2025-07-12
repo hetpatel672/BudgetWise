@@ -1,118 +1,166 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useState, useEffect } from 'react';
+import { StatusBar, StyleSheet, View, Text } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+// Import screens
+import HomeScreen from './src/screens/HomeScreen';
+import TransactionsScreen from './src/screens/TransactionsScreen';
+import BudgetsScreen from './src/screens/BudgetsScreen';
+import ReportsScreen from './src/screens/ReportsScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+// Import components
+import GlassmorphismNav from './src/components/GlassmorphismNav';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+// Import services
+import DatabaseService from './src/services/DatabaseService';
+import CurrencyService from './src/services/CurrencyService';
+import AuthService from './src/services/AuthService';
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+export default function App(): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState('home');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  useEffect(() => {
+    initializeApp();
+  }, []);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  const initializeApp = async () => {
+    try {
+      // Initialize services
+      await DatabaseService.initialize();
+      await CurrencyService.initialize();
+      await AuthService.initialize();
+
+      // Check authentication
+      const authResult = await AuthService.authenticate();
+      setIsAuthenticated(authResult.success);
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error('App initialization error:', error);
+      setIsLoading(false);
+    }
   };
 
+  const renderActiveScreen = () => {
+    const screenProps = {
+      navigation: {
+        navigate: (screen: string, params?: any) => {
+          if (screen === 'Transactions') {
+            setActiveTab('transactions');
+          } else if (screen === 'Budgets') {
+            setActiveTab('budgets');
+          } else if (screen === 'Reports') {
+            setActiveTab('reports');
+          } else if (screen === 'Settings') {
+            setActiveTab('settings');
+          } else {
+            setActiveTab('home');
+          }
+        }
+      }
+    };
+
+    switch (activeTab) {
+      case 'home':
+        return <HomeScreen {...screenProps} />;
+      case 'transactions':
+        return <TransactionsScreen {...screenProps} />;
+      case 'budgets':
+        return <BudgetsScreen {...screenProps} />;
+      case 'reports':
+        return <ReportsScreen {...screenProps} />;
+      case 'settings':
+        return <SettingsScreen {...screenProps} />;
+      default:
+        return <HomeScreen {...screenProps} />;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <LinearGradient 
+        colors={['#f0f9ff', '#e0e7ff', '#ede9fe']} 
+        style={styles.loadingContainer}
+      >
+        <Text style={styles.loadingText}>BudgetWise</Text>
+        <Text style={styles.loadingSubtext}>Loading your financial data...</Text>
+      </LinearGradient>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <LinearGradient 
+        colors={['#f0f9ff', '#e0e7ff', '#ede9fe']} 
+        style={styles.authContainer}
+      >
+        <Text style={styles.authText}>Authentication Required</Text>
+        <Text style={styles.authSubtext}>Please authenticate to access BudgetWise</Text>
+      </LinearGradient>
+    );
+  }
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+    <NavigationContainer>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f0f9ff" />
+        
+        {/* Main Content */}
+        <View style={styles.content}>
+          {renderActiveScreen()}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        {/* Glassmorphism Bottom Navigation */}
+        <GlassmorphismNav 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab} 
+        />
+      </View>
+    </NavigationContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    backgroundColor: '#f0f9ff',
   },
-  sectionTitle: {
+  content: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  loadingSubtext: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  authContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  authText: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  authSubtext: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
   },
 });
-
-export default App;
