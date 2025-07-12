@@ -7,41 +7,19 @@ import {
   TouchableOpacity,
   FlatList,
   RefreshControl,
-  Modal,
-  TextInput,
-  Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import LinearGradient from 'react-native-linear-gradient';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 import DatabaseService from '../services/DatabaseService';
 import CurrencyService from '../services/CurrencyService';
-import { Transaction } from '../models/Transaction';
 import { shadows } from '../theme/colors';
 
 const TransactionsScreen = ({ navigation }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [filterType, setFilterType] = useState('all'); // 'all', 'income', 'expense', 'transfer'
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Add transaction form state
-  const [formData, setFormData] = useState({
-    amount: '',
-    type: 'expense',
-    category: '',
-    description: '',
-    date: new Date(),
-  });
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
-  const categories = {
-    income: ['Salary', 'Freelance', 'Investment', 'Other Income'],
-    expense: ['Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Bills & Utilities', 'Healthcare', 'Education', 'Travel', 'Other Expenses'],
-  };
+  const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
     loadTransactions();
@@ -50,13 +28,9 @@ const TransactionsScreen = ({ navigation }) => {
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const filters = {};
-      if (filterType !== 'all') {
-        filters.type = filterType;
-      }
-      
-      const data = await DatabaseService.getTransactions(100, 0, filters);
-      setTransactions(data);
+      const filters = filterType !== 'all' ? { type: filterType } : {};
+      const allTransactions = await DatabaseService.getTransactions(100, 0, filters);
+      setTransactions(allTransactions);
     } catch (error) {
       console.error('Error loading transactions:', error);
     } finally {
@@ -68,41 +42,6 @@ const TransactionsScreen = ({ navigation }) => {
     setRefreshing(true);
     await loadTransactions();
     setRefreshing(false);
-  };
-
-  const handleAddTransaction = async () => {
-    try {
-      if (!formData.amount || !formData.category) {
-        Alert.alert('Error', 'Please fill in all required fields');
-        return;
-      }
-
-      const transaction = new Transaction({
-        amount: parseFloat(formData.amount),
-        type: formData.type,
-        category: formData.category,
-        description: formData.description,
-        date: formData.date,
-        currency: CurrencyService.getCurrentCurrency().code,
-      });
-
-      await DatabaseService.addTransaction(transaction);
-      
-      setShowAddModal(false);
-      setFormData({
-        amount: '',
-        type: 'expense',
-        category: '',
-        description: '',
-        date: new Date(),
-      });
-      
-      await loadTransactions();
-      Alert.alert('Success', 'Transaction added successfully');
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      Alert.alert('Error', 'Failed to add transaction');
-    }
   };
 
   const getCategoryIcon = (category, type) => {
@@ -128,26 +67,19 @@ const TransactionsScreen = ({ navigation }) => {
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
+    const transactionDate = new Date(date);
+    return transactionDate.toLocaleDateString('en-US', { 
+      month: 'short', 
       day: 'numeric',
-      year: 'numeric',
+      year: 'numeric'
     });
   };
 
-  const filteredTransactions = transactions.filter(transaction => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        transaction.description?.toLowerCase().includes(query) ||
-        transaction.category?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
-
   const renderTransaction = ({ item }) => (
-    <TouchableOpacity style={[styles.transactionItem, shadows.small]} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={[styles.transactionItem, shadows.small]}
+      activeOpacity={0.7}
+    >
       <View style={styles.transactionContent}>
         <LinearGradient
           colors={getCategoryColor(item.type)}
@@ -155,7 +87,7 @@ const TransactionsScreen = ({ navigation }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Ionicons 
+          <Icon 
             name={getCategoryIcon(item.category, item.type)} 
             size={20} 
             color="white" 
@@ -166,7 +98,7 @@ const TransactionsScreen = ({ navigation }) => {
           <Text style={styles.transactionDescription} numberOfLines={1}>
             {item.description || item.category || 'Transaction'}
           </Text>
-          <Text style={styles.transactionMeta}>
+          <Text style={styles.transactionCategory}>
             {item.category} • {formatDate(item.date)}
           </Text>
         </View>
@@ -201,37 +133,32 @@ const TransactionsScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Icon name="receipt-outline" size={64} color="#9ca3af" />
+      <Text style={styles.emptyStateText}>No transactions found</Text>
+      <Text style={styles.emptyStateSubtext}>
+        Start by adding your first transaction
+      </Text>
+    </View>
+  );
+
   return (
     <LinearGradient 
       colors={['#f0f9ff', '#e0e7ff', '#ede9fe']} 
       style={styles.container}
     >
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Transactions</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddModal(true)}
-        >
+        <TouchableOpacity style={styles.addButton}>
           <LinearGradient
             colors={['#6366f1', '#8b5cf6']}
             style={styles.addButtonGradient}
           >
-            <Ionicons name="add" size={24} color="white" />
+            <Icon name="add" size={24} color="white" />
           </LinearGradient>
         </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#6b7280" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search transactions..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
       </View>
 
       {/* Filter Buttons */}
@@ -245,150 +172,26 @@ const TransactionsScreen = ({ navigation }) => {
       </View>
 
       {/* Transactions List */}
-      <FlatList
-        data={filteredTransactions}
-        renderItem={renderTransaction}
-        keyExtractor={(item) => item.id}
-        style={styles.transactionsList}
-        contentContainerStyle={styles.transactionsContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={64} color="#9ca3af" />
-            <Text style={styles.emptyStateText}>No transactions found</Text>
-            <Text style={styles.emptyStateSubtext}>
-              {searchQuery ? 'Try adjusting your search' : 'Start by adding your first transaction'}
-            </Text>
+      <View style={styles.listContainer}>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading transactions...</Text>
           </View>
+        ) : transactions.length > 0 ? (
+          <FlatList
+            data={transactions}
+            renderItem={renderTransaction}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            contentContainerStyle={styles.listContent}
+          />
+        ) : (
+          renderEmptyState()
         )}
-      />
-
-      {/* Add Transaction Modal */}
-      <Modal
-        visible={showAddModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-              <Text style={styles.modalCancelButton}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add Transaction</Text>
-            <TouchableOpacity onPress={handleAddTransaction}>
-              <Text style={styles.modalSaveButton}>Save</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {/* Transaction Type */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Type</Text>
-              <View style={styles.typeSelector}>
-                {['income', 'expense', 'transfer'].map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.typeButton,
-                      formData.type === type && styles.activeTypeButton
-                    ]}
-                    onPress={() => setFormData({ ...formData, type, category: '' })}
-                  >
-                    <Text style={[
-                      styles.typeButtonText,
-                      formData.type === type && styles.activeTypeButtonText
-                    ]}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Amount */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Amount</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="0.00"
-                value={formData.amount}
-                onChangeText={(text) => setFormData({ ...formData, amount: text })}
-                keyboardType="numeric"
-              />
-            </View>
-
-            {/* Category */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.categorySelector}>
-                  {(categories[formData.type] || []).map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[
-                        styles.categoryButton,
-                        formData.category === category && styles.activeCategoryButton
-                      ]}
-                      onPress={() => setFormData({ ...formData, category })}
-                    >
-                      <Text style={[
-                        styles.categoryButtonText,
-                        formData.category === category && styles.activeCategoryButtonText
-                      ]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            {/* Description */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Description</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="Enter description..."
-                value={formData.description}
-                onChangeText={(text) => setFormData({ ...formData, description: text })}
-              />
-            </View>
-
-            {/* Date */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Date</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.dateButtonText}>
-                  {formData.date.toLocaleDateString()}
-                </Text>
-                <Ionicons name="calendar" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={formData.date}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate) {
-                  setFormData({ ...formData, date: selectedDate });
-                }
-              }}
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Bottom padding for navigation */}
-      <View style={styles.bottomPadding} />
+      </View>
     </LinearGradient>
   );
 };
@@ -396,14 +199,14 @@ const TransactionsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: 50,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,
@@ -421,36 +224,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    ...shadows.small,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#111827',
-  },
   filterContainer: {
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   filterButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'white',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     marginRight: 8,
-    ...shadows.small,
   },
   activeFilterButton: {
     backgroundColor: '#6366f1',
@@ -458,22 +241,22 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6b7280',
+    color: '#374151',
   },
   activeFilterButtonText: {
     color: 'white',
   },
-  transactionsList: {
+  listContainer: {
     flex: 1,
-  },
-  transactionsContent: {
     paddingHorizontal: 20,
+  },
+  listContent: {
     paddingBottom: 100,
   },
   transactionItem: {
     backgroundColor: 'white',
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 8,
     padding: 16,
   },
   transactionContent: {
@@ -497,7 +280,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 2,
   },
-  transactionMeta: {
+  transactionCategory: {
     fontSize: 12,
     color: '#6b7280',
   },
@@ -514,136 +297,26 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyStateText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#374151',
     marginTop: 16,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
   },
-  bottomPadding: {
-    height: 100,
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    justifyContent: 'center',
+    paddingVertical: 60,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  modalCancelButton: {
+  loadingText: {
     fontSize: 16,
     color: '#6b7280',
-  },
-  modalSaveButton: {
-    fontSize: 16,
-    color: '#6366f1',
-    fontWeight: '600',
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  formGroup: {
-    marginBottom: 24,
-  },
-  formLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  formInput: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 4,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  activeTypeButton: {
-    backgroundColor: '#6366f1',
-  },
-  typeButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  activeTypeButtonText: {
-    color: 'white',
-  },
-  categorySelector: {
-    flexDirection: 'row',
-  },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  activeCategoryButton: {
-    backgroundColor: '#6366f1',
-    borderColor: '#6366f1',
-  },
-  categoryButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  activeCategoryButtonText: {
-    color: 'white',
-  },
-  dateButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  dateButtonText: {
-    fontSize: 16,
-    color: '#111827',
   },
 });
 
 export default TransactionsScreen;
-

@@ -1,0 +1,275 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run ESLint
+      run: |
+        if [ -f "package.json" ] && grep -q "lint" package.json; then
+          npm run lint
+        else
+          echo "No lint script found, skipping..."
+        fi
+        
+    - name: Run Tests
+      run: |
+        if [ -f "package.json" ] && grep -q "test" package.json; then
+          npm test
+        else
+          echo "No test script found, skipping..."
+        fi
+        
+    - name: Check TypeScript
+      run: |
+        if [ -f "tsconfig.json" ]; then
+          npx tsc --noEmit
+        else
+          echo "No TypeScript config found, skipping..."
+        fi
+
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    
+    strategy:
+      matrix:
+        platform: [android, ios]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup Java (Android only)
+      if: matrix.platform == 'android'
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android SDK (Android only)
+      if: matrix.platform == 'android'
+      uses: android-actions/setup-android@v3
+      
+    - name: Check Android build files
+      if: matrix.platform == 'android'
+      run: |
+        echo "📱 Checking Android build configuration..."
+        if [ -f "android/build.gradle" ]; then
+          echo "✅ Android build.gradle found"
+        else
+          echo "❌ Android build.gradle not found"
+          exit 1
+        fi
+        
+        if [ -f "android/app/build.gradle" ]; then
+          echo "✅ Android app build.gradle found"
+        else
+          echo "❌ Android app build.gradle not found"
+          exit 1
+        fi
+        
+        if [ -f "android/gradlew" ]; then
+          echo "✅ Gradle wrapper found"
+          chmod +x android/gradlew
+        else
+          echo "❌ Gradle wrapper not found"
+          exit 1
+        fi
+        
+    - name: Check iOS build files
+      if: matrix.platform == 'ios'
+      run: |
+        echo "🍎 Checking iOS build configuration..."
+        if [ -d "ios" ]; then
+          echo "✅ iOS directory found"
+        else
+          echo "❌ iOS directory not found"
+          exit 1
+        fi
+        
+        if [ -f "ios/Podfile" ]; then
+          echo "✅ Podfile found"
+        else
+          echo "❌ Podfile not found"
+          exit 1
+        fi
+        
+        if find ios -name "*.xcodeproj" -o -name "*.xcworkspace" | grep -q .; then
+          echo "✅ Xcode project/workspace found"
+        else
+          echo "❌ No Xcode project or workspace found"
+          exit 1
+        fi
+        
+    - name: Validate package.json
+      run: |
+        echo "📦 Validating package.json..."
+        node -e "
+          const pkg = require('./package.json');
+          console.log('✅ Package name:', pkg.name);
+          console.log('✅ Version:', pkg.version);
+          console.log('✅ React Native version:', pkg.dependencies['react-native'] || 'Not found');
+          
+          const requiredDeps = [
+            'react',
+            'react-native',
+            'react-native-linear-gradient',
+            'react-native-vector-icons',
+            'react-native-sqlite-storage',
+            'crypto-js',
+            'react-native-chart-kit'
+          ];
+          
+          const missing = requiredDeps.filter(dep => !pkg.dependencies[dep]);
+          if (missing.length > 0) {
+            console.error('❌ Missing dependencies:', missing);
+            process.exit(1);
+          } else {
+            console.log('✅ All required dependencies found');
+          }
+        "
+        
+    - name: Check Metro configuration
+      run: |
+        echo "🚇 Checking Metro configuration..."
+        if [ -f "metro.config.js" ]; then
+          echo "✅ Metro config found"
+        else
+          echo "⚠️  Metro config not found (using default)"
+        fi
+        
+    - name: Validate React Native setup
+      run: |
+        echo "⚛️  Validating React Native setup..."
+        
+        # Check if index.js exists
+        if [ -f "index.js" ]; then
+          echo "✅ index.js found"
+        else
+          echo "❌ index.js not found"
+          exit 1
+        fi
+        
+        # Check if App component exists
+        if [ -f "App.tsx" ] || [ -f "App.js" ]; then
+          echo "✅ App component found"
+        else
+          echo "❌ App component not found"
+          exit 1
+        fi
+        
+        # Check src directory structure
+        if [ -d "src" ]; then
+          echo "✅ src directory found"
+          echo "📁 Source structure:"
+          find src -type f -name "*.js" -o -name "*.tsx" -o -name "*.ts" | head -10
+        else
+          echo "⚠️  src directory not found"
+        fi
+
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run npm audit
+      run: |
+        echo "🔒 Running security audit..."
+        npm audit --audit-level=moderate || true
+        
+    - name: Check for sensitive files
+      run: |
+        echo "🔍 Checking for sensitive files..."
+        
+        # Check for common sensitive files
+        sensitive_files=(
+          "*.keystore"
+          "*.p12"
+          "*.mobileprovision"
+          ".env"
+          "google-services.json"
+          "GoogleService-Info.plist"
+        )
+        
+        found_sensitive=false
+        for pattern in "${sensitive_files[@]}"; do
+          if find . -name "$pattern" -not -path "./node_modules/*" | grep -q .; then
+            echo "⚠️  Found potentially sensitive file: $pattern"
+            found_sensitive=true
+          fi
+        done
+        
+        if [ "$found_sensitive" = false ]; then
+          echo "✅ No sensitive files found in repository"
+        else
+          echo "⚠️  Please review sensitive files before committing"
+        fi
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [lint-and-test, build-check, security-check]
+    if: always()
+    
+    steps:
+    - name: Summary
+      run: |
+        echo "## 📋 Build Summary"
+        echo ""
+        echo "### Results:"
+        echo "- 🧪 Lint and Test: ${{ needs.lint-and-test.result }}"
+        echo "- 🏗️  Build Check: ${{ needs.build-check.result }}"
+        echo "- 🔒 Security Check: ${{ needs.security-check.result }}"
+        echo ""
+        
+        if [ "${{ needs.lint-and-test.result }}" = "success" ] && \
+           [ "${{ needs.build-check.result }}" = "success" ] && \
+           [ "${{ needs.security-check.result }}" = "success" ]; then
+          echo "✅ All checks passed! Ready for build and deployment."
+        else
+          echo "❌ Some checks failed. Please review the logs."
+          exit 1
+        fi

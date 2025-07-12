@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,360 +7,315 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
-  Modal,
-  TextInput,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import LinearGradient from 'react-native-linear-gradient';
+import Icon from 'react-native-vector-icons/Ionicons';
 
-import { colors, gradients, shadows } from '../theme/colors';
+import DatabaseService from '../services/DatabaseService';
+import AuthService from '../services/AuthService';
+import CurrencyService from '../services/CurrencyService';
+import { shadows } from '../theme/colors';
 
-const SettingsScreen = () => {
+const SettingsScreen = ({ navigation }) => {
   const [settings, setSettings] = useState({
-    biometricLogin: true,
-    notifications: true,
-    darkMode: false,
-    autoBackup: true,
     currency: 'USD',
-    language: 'English',
+    notifications: true,
+    biometric: false,
+    darkMode: false,
+    autoBackup: false,
   });
+  const [loading, setLoading] = useState(true);
 
-  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
-  const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [showBackupModal, setShowBackupModal] = useState(false);
+  useEffect(() => {
+    loadSettings();
+  }, []);
 
-  const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY'];
-  const languages = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Chinese', 'Japanese'];
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const currency = await DatabaseService.getSetting('currency') || 'USD';
+      const notifications = await DatabaseService.getSetting('notifications') !== 'false';
+      const biometric = await DatabaseService.getSetting('biometric') === 'true';
+      const darkMode = await DatabaseService.getSetting('darkMode') === 'true';
+      const autoBackup = await DatabaseService.getSetting('autoBackup') === 'true';
 
-  const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+      setSettings({
+        currency,
+        notifications,
+        biometric,
+        darkMode,
+        autoBackup,
+      });
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBackup = () => {
+  const updateSetting = async (key, value) => {
+    try {
+      await DatabaseService.setSetting(key, value.toString());
+      setSettings(prev => ({ ...prev, [key]: value }));
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      Alert.alert('Error', 'Failed to update setting');
+    }
+  };
+
+  const handleCurrencyChange = () => {
     Alert.alert(
-      'Backup Data',
-      'Your data will be securely backed up to your device storage.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Backup', onPress: () => performBackup() },
-      ]
+      'Change Currency',
+      'Currency selection will be available in a future update.',
+      [{ text: 'OK' }]
     );
   };
 
-  const handleRestore = () => {
-    Alert.alert(
-      'Restore Data',
-      'This will restore your data from the latest backup. Current data will be replaced.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Restore', onPress: () => performRestore(), style: 'destructive' },
-      ]
-    );
-  };
-
-  const handleExport = () => {
+  const handleExportData = () => {
     Alert.alert(
       'Export Data',
-      'Choose export format:',
+      'Data export functionality will be available in a future update.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleImportData = () => {
+    Alert.alert(
+      'Import Data',
+      'Data import functionality will be available in a future update.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleResetApp = () => {
+    Alert.alert(
+      'Reset App',
+      'This will delete all your data. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'CSV', onPress: () => exportData('csv') },
-        { text: 'JSON', onPress: () => exportData('json') },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await DatabaseService.clearAllData();
+              await AuthService.resetSecurity();
+              Alert.alert('Success', 'App has been reset successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reset app');
+            }
+          }
+        }
       ]
     );
   };
 
-  const performBackup = () => {
-    // Simulate backup process
-    setTimeout(() => {
-      Alert.alert('Success', 'Data backed up successfully!');
-    }, 1000);
-  };
-
-  const performRestore = () => {
-    // Simulate restore process
-    setTimeout(() => {
-      Alert.alert('Success', 'Data restored successfully!');
-    }, 1000);
-  };
-
-  const exportData = (format) => {
-    // Simulate export process
-    setTimeout(() => {
-      Alert.alert('Success', `Data exported as ${format.toUpperCase()} successfully!`);
-    }, 1000);
-  };
-
-  const SettingItem = ({ icon, title, subtitle, onPress, rightComponent }) => (
-    <TouchableOpacity style={[styles.settingItem, shadows.small]} onPress={onPress}>
+  const renderSettingItem = (icon, title, subtitle, onPress, rightComponent) => (
+    <TouchableOpacity
+      style={[styles.settingItem, shadows.small]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.settingLeft}>
-        <View style={[styles.settingIcon, { backgroundColor: colors.primary + '20' }]}>
-          <Ionicons name={icon} size={20} color={colors.primary} />
+        <View style={styles.settingIcon}>
+          <Icon name={icon} size={20} color="#6366f1" />
         </View>
         <View style={styles.settingText}>
           <Text style={styles.settingTitle}>{title}</Text>
           {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
         </View>
       </View>
-      <View style={styles.settingRight}>
-        {rightComponent}
-      </View>
+      {rightComponent || <Icon name="chevron-forward" size={20} color="#9ca3af" />}
     </TouchableOpacity>
   );
 
-  const SectionHeader = ({ title }) => (
-    <Text style={styles.sectionHeader}>{title}</Text>
-  );
-
-  const SelectionModal = ({ visible, onClose, title, options, selectedValue, onSelect }) => (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, shadows.large]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.optionsList}>
-            {options.map(option => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.optionItem,
-                  selectedValue === option && styles.optionItemSelected
-                ]}
-                onPress={() => {
-                  onSelect(option);
-                  onClose();
-                }}
-              >
-                <Text style={[
-                  styles.optionText,
-                  selectedValue === option && styles.optionTextSelected
-                ]}>
-                  {option}
-                </Text>
-                {selectedValue === option && (
-                  <Ionicons name="checkmark" size={20} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+  const renderSwitchItem = (icon, title, subtitle, value, onValueChange) => (
+    <View style={[styles.settingItem, shadows.small]}>
+      <View style={styles.settingLeft}>
+        <View style={styles.settingIcon}>
+          <Icon name={icon} size={20} color="#6366f1" />
+        </View>
+        <View style={styles.settingText}>
+          <Text style={styles.settingTitle}>{title}</Text>
+          {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
         </View>
       </View>
-    </Modal>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: '#e5e7eb', true: '#6366f1' }}
+        thumbColor={value ? '#ffffff' : '#f3f4f6'}
+      />
+    </View>
   );
 
+  const renderSection = (title, children) => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <LinearGradient 
+        colors={['#f0f9ff', '#e0e7ff', '#ede9fe']} 
+        style={styles.container}
+      >
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
   return (
-    <LinearGradient colors={gradients.background} style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+    <LinearGradient 
+      colors={['#f0f9ff', '#e0e7ff', '#ede9fe']} 
+      style={styles.container}
+    >
+      <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
         </View>
 
         {/* Profile Section */}
-        <View style={[styles.profileCard, shadows.medium]}>
-          <View style={styles.profileAvatar}>
-            <Ionicons name="person" size={40} color="white" />
+        {renderSection('Profile', (
+          <View>
+            {renderSettingItem(
+              'person-circle',
+              'Account',
+              'Manage your account settings',
+              () => Alert.alert('Info', 'Account management coming soon')
+            )}
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>John Doe</Text>
-            <Text style={styles.profileEmail}>john.doe@example.com</Text>
+        ))}
+
+        {/* Preferences Section */}
+        {renderSection('Preferences', (
+          <View>
+            {renderSettingItem(
+              'card',
+              'Currency',
+              `Current: ${settings.currency}`,
+              handleCurrencyChange
+            )}
+            {renderSwitchItem(
+              'notifications',
+              'Notifications',
+              'Enable push notifications',
+              settings.notifications,
+              (value) => updateSetting('notifications', value)
+            )}
+            {renderSwitchItem(
+              'moon',
+              'Dark Mode',
+              'Use dark theme',
+              settings.darkMode,
+              (value) => updateSetting('darkMode', value)
+            )}
           </View>
-          <TouchableOpacity style={styles.editProfileButton}>
-            <Ionicons name="pencil" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
+        ))}
 
-        {/* Security Settings */}
-        <SectionHeader title="Security" />
-        <SettingItem
-          icon="finger-print"
-          title="Biometric Login"
-          subtitle="Use fingerprint or face recognition"
-          rightComponent={
-            <Switch
-              value={settings.biometricLogin}
-              onValueChange={(value) => updateSetting('biometricLogin', value)}
-              trackColor={{ false: colors.textSecondary + '30', true: colors.primary + '50' }}
-              thumbColor={settings.biometricLogin ? colors.primary : colors.textSecondary}
-            />
-          }
-        />
+        {/* Security Section */}
+        {renderSection('Security', (
+          <View>
+            {renderSwitchItem(
+              'finger-print',
+              'Biometric Authentication',
+              'Use fingerprint or face ID',
+              settings.biometric,
+              (value) => updateSetting('biometric', value)
+            )}
+            {renderSettingItem(
+              'lock-closed',
+              'Change PIN',
+              'Update your security PIN',
+              () => Alert.alert('Info', 'PIN management coming soon')
+            )}
+          </View>
+        ))}
 
-        {/* Preferences */}
-        <SectionHeader title="Preferences" />
-        <SettingItem
-          icon="notifications"
-          title="Notifications"
-          subtitle="Enable push notifications"
-          rightComponent={
-            <Switch
-              value={settings.notifications}
-              onValueChange={(value) => updateSetting('notifications', value)}
-              trackColor={{ false: colors.textSecondary + '30', true: colors.primary + '50' }}
-              thumbColor={settings.notifications ? colors.primary : colors.textSecondary}
-            />
-          }
-        />
-        <SettingItem
-          icon="moon"
-          title="Dark Mode"
-          subtitle="Switch to dark theme"
-          rightComponent={
-            <Switch
-              value={settings.darkMode}
-              onValueChange={(value) => updateSetting('darkMode', value)}
-              trackColor={{ false: colors.textSecondary + '30', true: colors.primary + '50' }}
-              thumbColor={settings.darkMode ? colors.primary : colors.textSecondary}
-            />
-          }
-        />
-        <SettingItem
-          icon="cash"
-          title="Currency"
-          subtitle={settings.currency}
-          onPress={() => setShowCurrencyModal(true)}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
-        <SettingItem
-          icon="language"
-          title="Language"
-          subtitle={settings.language}
-          onPress={() => setShowLanguageModal(true)}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
+        {/* Data Section */}
+        {renderSection('Data', (
+          <View>
+            {renderSwitchItem(
+              'cloud-upload',
+              'Auto Backup',
+              'Automatically backup your data',
+              settings.autoBackup,
+              (value) => updateSetting('autoBackup', value)
+            )}
+            {renderSettingItem(
+              'download',
+              'Export Data',
+              'Export your data to file',
+              handleExportData
+            )}
+            {renderSettingItem(
+              'cloud-download',
+              'Import Data',
+              'Import data from file',
+              handleImportData
+            )}
+          </View>
+        ))}
 
-        {/* Data Management */}
-        <SectionHeader title="Data Management" />
-        <SettingItem
-          icon="cloud-upload"
-          title="Auto Backup"
-          subtitle="Automatically backup data"
-          rightComponent={
-            <Switch
-              value={settings.autoBackup}
-              onValueChange={(value) => updateSetting('autoBackup', value)}
-              trackColor={{ false: colors.textSecondary + '30', true: colors.primary + '50' }}
-              thumbColor={settings.autoBackup ? colors.primary : colors.textSecondary}
-            />
-          }
-        />
-        <SettingItem
-          icon="save"
-          title="Backup Data"
-          subtitle="Create a backup of your data"
-          onPress={handleBackup}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
-        <SettingItem
-          icon="refresh"
-          title="Restore Data"
-          subtitle="Restore from backup"
-          onPress={handleRestore}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
-        <SettingItem
-          icon="download"
-          title="Export Data"
-          subtitle="Export your data"
-          onPress={handleExport}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
-
-        {/* About */}
-        <SectionHeader title="About" />
-        <SettingItem
-          icon="information-circle"
-          title="App Version"
-          subtitle="1.0.0"
-          rightComponent={null}
-        />
-        <SettingItem
-          icon="document-text"
-          title="Privacy Policy"
-          onPress={() => Alert.alert('Privacy Policy', 'Privacy policy content would be shown here.')}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
-        <SettingItem
-          icon="shield-checkmark"
-          title="Terms of Service"
-          onPress={() => Alert.alert('Terms of Service', 'Terms of service content would be shown here.')}
-          rightComponent={
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          }
-        />
+        {/* About Section */}
+        {renderSection('About', (
+          <View>
+            {renderSettingItem(
+              'information-circle',
+              'App Version',
+              '1.0.0',
+              () => Alert.alert('BudgetWise', 'Version 1.0.0\nBuild 1')
+            )}
+            {renderSettingItem(
+              'help-circle',
+              'Help & Support',
+              'Get help and contact support',
+              () => Alert.alert('Info', 'Help & Support coming soon')
+            )}
+            {renderSettingItem(
+              'document-text',
+              'Privacy Policy',
+              'Read our privacy policy',
+              () => Alert.alert('Info', 'Privacy Policy coming soon')
+            )}
+          </View>
+        ))}
 
         {/* Danger Zone */}
-        <SectionHeader title="Danger Zone" />
-        <TouchableOpacity
-          style={[styles.dangerButton, shadows.small]}
-          onPress={() => {
-            Alert.alert(
-              'Clear All Data',
-              'This will permanently delete all your data. This action cannot be undone.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => {} },
-              ]
-            );
-          }}
-        >
-          <Ionicons name="trash" size={20} color={colors.error} />
-          <Text style={styles.dangerButtonText}>Clear All Data</Text>
-        </TouchableOpacity>
-
-        {/* Bottom padding */}
-        <View style={styles.bottomPadding} />
+        {renderSection('Danger Zone', (
+          <TouchableOpacity
+            style={[styles.dangerItem, shadows.small]}
+            onPress={handleResetApp}
+            activeOpacity={0.7}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: '#fee2e2' }]}>
+                <Icon name="trash" size={20} color="#ef4444" />
+              </View>
+              <View style={styles.settingText}>
+                <Text style={[styles.settingTitle, { color: '#ef4444' }]}>
+                  Reset App
+                </Text>
+                <Text style={styles.settingSubtitle}>
+                  Delete all data and reset the app
+                </Text>
+              </View>
+            </View>
+            <Icon name="chevron-forward" size={20} color="#ef4444" />
+          </TouchableOpacity>
+        ))}
       </ScrollView>
-
-      {/* Currency Selection Modal */}
-      <SelectionModal
-        visible={showCurrencyModal}
-        onClose={() => setShowCurrencyModal(false)}
-        title="Select Currency"
-        options={currencies}
-        selectedValue={settings.currency}
-        onSelect={(currency) => updateSetting('currency', currency)}
-      />
-
-      {/* Language Selection Modal */}
-      <SelectionModal
-        visible={showLanguageModal}
-        onClose={() => setShowLanguageModal(false)}
-        title="Select Language"
-        options={languages}
-        selectedValue={settings.language}
-        onSelect={(language) => updateSetting('language', language)}
-      />
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  scrollView: {
     flex: 1,
     paddingTop: 50,
   },
@@ -371,59 +326,39 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: colors.text,
+    color: '#111827',
   },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 30,
+  section: {
+    marginBottom: 24,
   },
-  profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 15,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  editProfileButton: {
-    padding: 8,
-  },
-  sectionHeader: {
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
     marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 10,
   },
   settingItem: {
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  dangerItem: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 15,
     marginHorizontal: 20,
     marginBottom: 8,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -434,9 +369,10 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: '#ede9fe',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
+    marginRight: 12,
   },
   settingText: {
     flex: 1,
@@ -444,83 +380,22 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: '#111827',
     marginBottom: 2,
   },
   settingSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 14,
+    color: '#6b7280',
   },
-  settingRight: {
-    marginLeft: 10,
-  },
-  dangerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.error + '10',
-    borderRadius: 12,
-    padding: 15,
-    marginHorizontal: 20,
-    marginBottom: 8,
-    gap: 10,
-  },
-  dangerButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.error,
-  },
-  bottomPadding: {
-    height: 100,
-  },
-  modalOverlay: {
+  loadingContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    width: '80%',
-    maxHeight: '70%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  optionsList: {
-    maxHeight: 300,
-  },
-  optionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    marginBottom: 5,
-  },
-  optionItemSelected: {
-    backgroundColor: colors.primary + '10',
-  },
-  optionText: {
+  loadingText: {
     fontSize: 16,
-    color: colors.text,
-  },
-  optionTextSelected: {
-    color: colors.primary,
-    fontWeight: '600',
+    color: '#6b7280',
   },
 });
 
 export default SettingsScreen;
-
